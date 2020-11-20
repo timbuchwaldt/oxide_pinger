@@ -8,5 +8,7 @@ edition = "2018"
 
 [dependencies]
 oping = "0.4.0"
+prometheus = {version = "0.10.0", features= ["process"]}
 prometheus_exporter = "0.7"
 lazy_static = "1.4.0"
+config = "0.10.1"
