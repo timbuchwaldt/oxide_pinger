@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 use oping::{Ping, PingResult};
-use std::fmt;
+use std::process;
 
 use prometheus_exporter::prometheus::register_counter_vec;
 use prometheus_exporter::prometheus::register_histogram_vec;
@@ -24,15 +24,10 @@ lazy_static! {
 
 fn do_pings() -> PingResult<()> {
     let mut ping = Ping::new();
-    ping.set_timeout(1.0); // timeout of 5.0 seconds
-    ping.add_host("localhost"); // fails here if socket can't be created
-    ping.add_host("8.8.8.8");
-    ping.add_host("::1"); // IPv4 / IPv6 addresses OK
-    ping.add_host("1.1.1.1");
-    ping.add_host("9.9.9.9");
+    ping.set_timeout(1.0)?; // timeout of 5.0 seconds
 
     for i in 1..255 {
-        ping.add_host(&format!("1.1.1.{}", i));
+        ping.add_host(&format!("1.1.1.{}", i))?;
     }
 
     let maybe_responses = ping.send();
@@ -65,9 +60,27 @@ fn do_pings() -> PingResult<()> {
 }
 
 fn main() {
-    prometheus_exporter::start("0.0.0.0:9184".parse().unwrap());
+    match "0.0.0.0:9184".parse() {
+        Ok(s) => {
+            match prometheus_exporter::start(s) {
+                Ok(_) => {}
+                Err(_) => {
+                    process::exit(1);
+                }
+            }
+        }
+        Err(_) => {
+            process::exit(1);
+        }
+    }
 
     loop {
-        do_pings();
+        match do_pings() {
+            Ok(_) => {}
+            Err(_) => {
+                process::exit(1);
+
+            }
+        }
     }
 }
