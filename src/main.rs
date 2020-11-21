@@ -5,6 +5,7 @@ extern crate log;
 extern crate notify;
 
 use config::*;
+use ipnet::IpNet;
 use notify::{DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
 use oping::{Ping, PingResult};
 use prometheus_exporter::prometheus::register_counter_vec;
@@ -20,11 +21,9 @@ use std::{thread, time};
 lazy_static! {
     static ref LOST_COUNTS: CounterVec =
         register_counter_vec!("icmp_timeout", "help", &["host"]).unwrap();
-    static ref SUCCESSFUL_COUNTS: CounterVec =
-        register_counter_vec!("icmp_successful", "help", &["host"]).unwrap();
     static ref HISTOGRAM_VEC: HistogramVec = register_histogram_vec!(
         "icmp_response",
-        "ICMP Response timie",
+        "ICMP Response time",
         &["host"],
         vec![0.0, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 50.0, 100.0, 200.0]
     )
@@ -45,10 +44,15 @@ fn do_pings(hosts: Vec<config::Value>) -> PingResult<()> {
     ping.set_timeout(SETTINGS.read().unwrap().get_float("icmp_interval").unwrap())?;
 
     for h in hosts {
-        debug!("Adding host {}", h.to_string());
-        ping.add_host(&h.to_string())?;
-    }
+        debug!("Adding network {}", h.to_string());
+        let net: IpNet = h.to_string().parse().unwrap();
 
+        for host in net.hosts() {
+            debug!("Adding host {}", &host);
+            ping.add_host(&host.to_string())?;
+        }
+    }
+    debug!("Sending pings");
     let maybe_responses = ping.send();
     match maybe_responses {
         Ok(responses) => {
@@ -61,7 +65,6 @@ fn do_pings(hosts: Vec<config::Value>) -> PingResult<()> {
                         .with_label_values(&[&resp.hostname])
                         .observe(resp.latency_ms);
 
-                    SUCCESSFUL_COUNTS.with_label_values(&[&resp.hostname]).inc();
                     /* println!(
                         "Response from host {} (address {}): latency {} ms",
                         resp.hostname, resp.address, resp.latency_ms
@@ -81,6 +84,9 @@ fn do_pings(hosts: Vec<config::Value>) -> PingResult<()> {
 fn main() {
     env_logger::init();
 
+    let net: IpNet = "10.24.0.1/24".parse().unwrap();
+
+    println!("{:?}", net);
     match SETTINGS
         .read()
         .unwrap()
