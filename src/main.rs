@@ -5,18 +5,15 @@ extern crate log;
 extern crate notify;
 
 use config::*;
+use fastping_rs::PingResult::{Idle, Receive};
+use fastping_rs::Pinger;
 use ipnet::IpNet;
-use notify::{DebouncedEvent, RecommendedWatcher, RecursiveMode, Watcher};
-use oping::{Ping, PingResult};
 use prometheus_exporter::prometheus::register_counter_vec;
 use prometheus_exporter::prometheus::register_histogram_vec;
 use prometheus_exporter::prometheus::CounterVec;
 use prometheus_exporter::prometheus::HistogramVec;
 use std::process;
-use std::sync::mpsc::channel;
 use std::sync::RwLock;
-use std::time::Duration;
-use std::{thread, time};
 
 lazy_static! {
     static ref LOST_COUNTS: CounterVec =
@@ -39,9 +36,11 @@ lazy_static! {
     });
 }
 
-fn do_pings(hosts: Vec<config::Value>) -> PingResult<()> {
-    let mut ping = Ping::new();
-    ping.set_timeout(SETTINGS.read().unwrap().get_float("icmp_interval").unwrap())?;
+fn do_pings(hosts: Vec<config::Value>) {
+    let (pinger, results) = match Pinger::new(None, None) {
+        Ok((pinger, results)) => (pinger, results),
+        Err(e) => panic!("Error creating pinger: {}", e),
+    };
 
     for h in hosts {
         debug!("Adding network {}", h.to_string());
@@ -49,44 +48,35 @@ fn do_pings(hosts: Vec<config::Value>) -> PingResult<()> {
 
         for host in net.hosts() {
             debug!("Adding host {}", &host);
-            ping.add_host(&host.to_string())?;
+            pinger.add_ipaddr(&host.to_string());
         }
     }
+
+    pinger.run_pinger();
+
     debug!("Sending pings");
-    let maybe_responses = ping.send();
-    match maybe_responses {
-        Ok(responses) => {
-            for resp in responses {
-                if resp.dropped > 0 {
-                    LOST_COUNTS.with_label_values(&[&resp.hostname]).inc();
-                // println!("No response from host: {}", resp.hostname);
-                } else {
-                    HISTOGRAM_VEC
-                        .with_label_values(&[&resp.hostname])
-                        .observe(resp.latency_ms);
-
-                    /* println!(
-                        "Response from host {} (address {}): latency {} ms",
-                        resp.hostname, resp.address, resp.latency_ms
-                    ); */
-                    // println!("    all details: {:?}", resp);
+    loop {
+        match results.recv() {
+            Ok(result) => match result {
+                Idle { addr } => {
+                    info!("Idle Address {}.", addr);
+                    LOST_COUNTS.with_label_values(&[&addr.to_string()]).inc();
                 }
-            }
-        }
-        Err(_) => {
-            println!("Bla");
+                Receive { addr, rtt } => {
+                    info!("Receive from Address {} in {:?}.", addr, rtt);
+                    HISTOGRAM_VEC
+                        .with_label_values(&[&addr.to_string()])
+                        .observe(rtt.as_millis() as f64);
+                }
+            },
+            Err(_) => panic!("Worker threads disconnected before the solution was found!"),
         }
     }
-
-    Ok(())
 }
 
 fn main() {
     env_logger::init();
 
-    let net: IpNet = "10.24.0.1/24".parse().unwrap();
-
-    println!("{:?}", net);
     match SETTINGS
         .read()
         .unwrap()
@@ -104,64 +94,6 @@ fn main() {
             process::exit(1);
         }
     }
-    std::thread::spawn(|| {
-        watch();
-    });
 
-    loop {
-        let desired_sleep_time = time::Duration::from_millis(
-            SETTINGS.read().unwrap().get_int("icmp_interval").unwrap() as u64,
-        );
-
-        let start_time = time::Instant::now();
-        match do_pings(SETTINGS.read().unwrap().get_array(&"hosts").unwrap()) {
-            Ok(_) => {}
-            Err(_) => {
-                process::exit(1);
-            }
-        }
-        let now = time::Instant::now();
-        let wait_time = now - start_time;
-        debug!("Ran ping, took: {:?}", wait_time);
-        if wait_time < desired_sleep_time {
-            let sleep_time = desired_sleep_time - wait_time;
-            debug!("Sleeping for, {:?}", sleep_time);
-
-            thread::sleep(sleep_time);
-        } else {
-            warn!("Ping took longer than desired loop interval")
-        }
-    }
-}
-
-fn watch() {
-    // Create a channel to receive the events.
-    let (tx, rx) = channel();
-
-    // Automatically select the best implementation for your platform.
-    // You can also access each implementation directly e.g. INotifyWatcher.
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, Duration::from_secs(2)).unwrap();
-
-    // Add a path to be watched. All files and directories at that path and
-    // below will be monitored for changes.
-    watcher
-        .watch("./settings.toml", RecursiveMode::NonRecursive)
-        .unwrap();
-
-    // This is a simple loop, but you may want to use more complex logic here,
-    // for example to handle I/O.
-    loop {
-        match rx.recv() {
-            Ok(DebouncedEvent::Write(_)) => {
-                debug!("settings.toml written; refreshing configuration ...");
-                SETTINGS.write().unwrap().refresh().unwrap();
-            }
-
-            Err(e) => println!("watch error: {:?}", e),
-
-            _ => {
-                // Ignore event
-            }
-        }
-    }
+    do_pings(SETTINGS.read().unwrap().get_array(&"hosts").unwrap())
 }

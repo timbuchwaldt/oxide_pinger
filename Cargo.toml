@@ -7,7 +7,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-oping = "0.4.0"
 prometheus = {version = "0.10.0", features= ["process"]}
 prometheus_exporter = "0.7"
 lazy_static = "1.4.0"
@@ -16,4 +15,4 @@ log = "0.4.0"
 env_logger = "0.8.2"
 notify = "^4.0.0"
 ipnet = "2.3.0"
-fastping-rs = { path = "../fastping-rs" }
+fastping-rs = "0.1.6" #{ path = "../fastping-rs" }

@@ -63,12 +63,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08c48aae112d48ed9f069b33538ea9e3e90aa263cfa3d1c24309612b1f7472de"
 
 [[package]]
-name = "cc"
-version = "1.0.64"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92cc7b4cfeaa608da27ccbd00af8e1485761334821791ccf5ce88e9a2bb949e7"
-
-[[package]]
 name = "cfg-if"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -167,6 +161,8 @@ dependencies = [
 [[package]]
 name = "fastping-rs"
 version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b6d51c12c9681b8321a8f9185fcc84a84d9a1224073eec6b19831754e13d675"
 dependencies = [
  "log 0.4.11",
  "pnet",
@@ -571,17 +567,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "oping"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4422f85745475dbd50b5c99b7df256b6a8b36badd222b401583ac8718d13bd56"
-dependencies = [
- "cc",
- "libc",
- "pkg-config",
-]
-
-[[package]]
 name = "oxide_pinger"
 version = "0.1.0"
 dependencies = [
@@ -592,7 +577,6 @@ dependencies = [
  "lazy_static",
  "log 0.4.11",
  "notify",
- "oping",
  "prometheus",
  "prometheus_exporter",
 ]
@@ -628,12 +612,6 @@ name = "percent-encoding"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
-
-[[package]]
-name = "pkg-config"
-version = "0.3.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3831453b3449ceb48b6d9c7ad7c96d5ea673e9b470a1dc578c2ce6521230884c"
 
 [[package]]
 name = "pnet"
